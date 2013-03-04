@@ -42,25 +42,29 @@ def parse_put_error_message(message):
 
     return required_fields
 
-def catch_error(msg_or_exception):
-
+def catch_error(msg_or_exception, **kwargs):
     # handle errors returned by the xnat server
     if isinstance(msg_or_exception, (str, unicode)):
         # parse the message
         msg = msg_or_exception
         if msg.startswith('<html>'):
-            error = msg.split('<h3>')[1].split('</h3>')[0]
-
+            match = re.search('<h1>(?P<error>HTTP Status.+)</h1>', msg) or \
+                re.search('<h3>(?P<error>.+)</h3>', msg)
         elif msg.startswith('<!DOCTYPE'):
-            if 'Not Found' in msg.split('<title>')[1].split('</title>')[0]:
-                error = msg.split('<title>')[1].split('</title>')[0]
-            else:
-                error = msg.split('<h1>')[1].split('</h1>')[0]
+            match = re.search('<title>(?P<error>.*Not Found.*)</title>', msg) or \
+                re.search('<h1>(?P<error>.+)</h1>', msg)
+        if match:
+            error = match.group('error')
         else:
-            error = msg
-            
+            error = 'Database error'
+        # If there is additional information, then add it to the error message.
+        # The replace strips out the dictionary formatting cruft resulting in a
+        # clearer error message.
+        if kwargs:
+            error = error + '(%s)' % re.sub("[{'}]", "", str(kwargs))
+
         # choose the exception
-        if error == 'The request requires user authentication':
+        if re.search('The request(ed resource)? requires user authentication', error):
             raise OperationalError('Authentication failed')
         elif 'Not Found' in error:
             raise OperationalError('Connection failed')
@@ -68,12 +72,11 @@ def catch_error(msg_or_exception):
             raise DatabaseError(error)
 
     # handle other errors, raised for instance by the http layer
+    elif isinstance(msg_or_exception, httplib2.ServerNotFoundError):
+        raise OperationalError('Connection failed')
     else:
-        if isinstance(msg_or_exception, httplib2.ServerNotFoundError):
-            raise OperationalError('Connection failed')
-        else:
-            raise DatabaseError(str(msg_or_exception))
-
+        raise DatabaseError(str(msg_or_exception))
+    
 
 # Exceptions as defined in PEP-249, the module treats errors using thoses
 # classes following as closely as possible the original definitions.

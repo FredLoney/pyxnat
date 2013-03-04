@@ -223,9 +223,6 @@ class Interface(object):
             try:                
                 self._jsession = 'JSESSIONID=' + self._exec('/data/JSESSION')
                 self._entry = '/data'
-
-                if is_xnat_error(self._jsession):
-                    catch_error(self._jsession)
             except Exception, e:
                 if not '/data/JSESSION' in str(e):
                     raise e
@@ -292,11 +289,11 @@ class Interface(object):
             headers = {}
 
         self._get_entry_point()
-
         uri = join_uri(self._server, uri)
 
         if DEBUG:
-            print uri
+            print 'Submitting ' + uri + ' ' + method + '...'
+        
         # using session authentication
         headers['cookie'] = self._jsession
         headers['connection'] = 'keep-alive'
@@ -361,26 +358,14 @@ class Interface(object):
                 self._jsession = jsessionid[0]
 
         if response is not None and response.get('status') == '404':
-            r,_ = self._http.request(self._server)
-
-            if self._server.rstrip('/') != r.get('content-location', 
-                                                 self._server).rstrip('/'):
-                
-                old_server = self._server
-                self._server = r.get('content-location').rstrip('/')
-                return self._exec(uri.replace(old_server, ''), method, body)
-            else:
-                raise httplib2.HttpLib2Error('%s %s %s' % (uri, 
-                                                           response.status,
-                                                           response.reason
-                                                           )
-                                             )
+            raise httplib2.HttpLib2Error('%s %s %s' % (uri, 
+                                                       response.status,
+                                                       response.reason
+                                                       )
+                                        )
 
         if is_xnat_error(content):
-            print response.keys()
-            print response.get("status")
-
-            catch_error(content)
+            catch_error(content, URI=uri, Method=method, Status=response.status)
 
         return content
 
@@ -408,10 +393,6 @@ class Interface(object):
                 uri += '?format=csv'
 
         content = self._exec(uri, 'GET')
-        
-        if is_xnat_error(content):
-            catch_error(content)
-
         json_content = csv_to_json(content)
 
         # add the (relative) path field for files

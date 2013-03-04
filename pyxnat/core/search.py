@@ -699,9 +699,6 @@ class Search(object):
         content = self._intf._exec(
             "%s/search?format=csv" % self._intf._entry, 'POST', bundle)
 
-        if is_xnat_error(content):
-            catch_error(content)
-
         results = csv.reader(StringIO(content), delimiter=',', quotechar='"')
         headers = results.next()
 

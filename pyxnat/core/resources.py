@@ -26,7 +26,7 @@ from .pathutil import find_files
 from .attributes import EAttrs
 from .search import build_search_document, rpn_contraints, query_from_xml
 from .errors import is_xnat_error, parse_put_error_message
-from .errors import DataError, ProgrammingError, catch_error
+from .errors import DataError, DatabaseError, ProgrammingError, catch_error
 from .cache import md5name
 from .provenance import Provenance
 # from .pipelines import Pipelines
@@ -366,23 +366,7 @@ class EObject(object):
         if DEBUG:
             print 'PUT', create_uri
 
-        output = self._intf._exec(create_uri, 'PUT')
-
-        if is_xnat_error(output):
-            paths = []
-            for datatype_name, element_name \
-                    in parse_put_error_message(output):
-
-                path = self._intf.inspect.schemas.look_for(
-                    element_name, datatype_name)
-
-                paths.extend(path)
-
-                if DEBUG:
-                    print path, 'is required'
-
-            return paths
-
+        self._intf._exec(create_uri, 'PUT')
         return self
 
     insert = create
@@ -400,9 +384,6 @@ class EObject(object):
             else self._uri + '?removeFiles=true'
 
         out = self._intf._exec(delete_uri, 'DELETE')
-
-        if is_xnat_error(out):
-            catch_error(out)
 
     def get(self):
         """ Retrieves the XML document corresponding to this element.
@@ -1913,7 +1894,7 @@ class File(EObject):
 
         if self._absuri is None:
             raise DataError('Cannot delete file: does not exists')
-
+        
         return self._intf._exec(self._absuri, 'DELETE')
 
     def size(self):
